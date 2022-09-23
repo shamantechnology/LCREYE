@@ -1,5 +1,13 @@
 #pragma once
 
+#include "ComboboxItem.h"
+#include "VFrameReader.h"
+#include <vector>
+#include <string>
+#include <iostream>
+#include <codecvt>
+#include <list>
+
 namespace LCREYE {
 
 	using namespace System;
@@ -8,60 +16,33 @@ namespace LCREYE {
 	using namespace System::Windows::Forms;
 	using namespace System::Data;
 	using namespace System::Drawing;
+	using namespace System::Diagnostics;
 
 	/// <summary>
 	/// Summary for MainWindow
 	/// </summary>
 	public ref class MainWindow : public System::Windows::Forms::Form
 	{
-	public:
-		MainWindow(void)
-		{
-			InitializeComponent();
-			//
-			//TODO: Add the constructor code here
-			//
-		}
-
-	protected:
-		/// <summary>
-		/// Clean up any resources being used.
-		/// </summary>
-		~MainWindow()
-		{
-			if (components)
-			{
-				delete components;
-			}
-		}
-
+	public: MainWindow(void);
+	protected: ~MainWindow();
+	private: System::Windows::Forms::RichTextBox^ ConsoleBox;
 	protected:
 
 
-
-	private: System::Windows::Forms::RichTextBox^ Console;
 	private: System::Windows::Forms::ComboBox^ WindowSelection;
-	private: System::Windows::Forms::PictureBox^ CapView;
+	private: System::Windows::Forms::PictureBox^ CaptureView;
+
 	private: System::Windows::Forms::Button^ RecordBtn;
-
-
-
-
-
-	protected:
-
-	protected:
-
-
-
-
-
 
 	private:
 		/// <summary>
 		/// Required designer variable.
 		/// </summary>
 		System::ComponentModel::Container ^components;
+	private: System::ComponentModel::BackgroundWorker^ WindowCaptureWorker;
+
+		// vframe member
+		LCREYE::VFrameReader^ vreader;
 
 #pragma region Windows Form Designer generated code
 		/// <summary>
@@ -70,28 +51,29 @@ namespace LCREYE {
 		/// </summary>
 		void InitializeComponent(void)
 		{
-			this->Console = (gcnew System::Windows::Forms::RichTextBox());
+			this->ConsoleBox = (gcnew System::Windows::Forms::RichTextBox());
 			this->WindowSelection = (gcnew System::Windows::Forms::ComboBox());
-			this->CapView = (gcnew System::Windows::Forms::PictureBox());
+			this->CaptureView = (gcnew System::Windows::Forms::PictureBox());
 			this->RecordBtn = (gcnew System::Windows::Forms::Button());
-			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->CapView))->BeginInit();
+			this->WindowCaptureWorker = (gcnew System::ComponentModel::BackgroundWorker());
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->CaptureView))->BeginInit();
 			this->SuspendLayout();
 			// 
-			// Console
+			// ConsoleBox
 			// 
-			this->Console->Anchor = static_cast<System::Windows::Forms::AnchorStyles>(((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
+			this->ConsoleBox->Anchor = static_cast<System::Windows::Forms::AnchorStyles>(((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
 				| System::Windows::Forms::AnchorStyles::Right));
-			this->Console->BackColor = System::Drawing::SystemColors::Desktop;
-			this->Console->Cursor = System::Windows::Forms::Cursors::Default;
-			this->Console->Font = (gcnew System::Drawing::Font(L"Consolas", 11.5F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
+			this->ConsoleBox->BackColor = System::Drawing::SystemColors::Desktop;
+			this->ConsoleBox->Cursor = System::Windows::Forms::Cursors::Default;
+			this->ConsoleBox->Font = (gcnew System::Drawing::Font(L"Consolas", 11.5F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(2)));
-			this->Console->ForeColor = System::Drawing::Color::Lime;
-			this->Console->Location = System::Drawing::Point(1151, 31);
-			this->Console->Name = L"Console";
-			this->Console->ReadOnly = true;
-			this->Console->Size = System::Drawing::Size(261, 636);
-			this->Console->TabIndex = 6;
-			this->Console->Text = L"Test\nTEST\nT E S T";
+			this->ConsoleBox->ForeColor = System::Drawing::Color::Lime;
+			this->ConsoleBox->Location = System::Drawing::Point(1151, 31);
+			this->ConsoleBox->Name = L"ConsoleBox";
+			this->ConsoleBox->ReadOnly = true;
+			this->ConsoleBox->Size = System::Drawing::Size(261, 636);
+			this->ConsoleBox->TabIndex = 6;
+			this->ConsoleBox->Text = L"";
 			// 
 			// WindowSelection
 			// 
@@ -102,18 +84,21 @@ namespace LCREYE {
 			this->WindowSelection->Name = L"WindowSelection";
 			this->WindowSelection->Size = System::Drawing::Size(261, 21);
 			this->WindowSelection->TabIndex = 3;
+			this->WindowSelection->SelectionChangeCommitted += gcnew System::EventHandler(this, &MainWindow::WindowSelection_SelectionChangeCommitted);
+			this->WindowSelection->Click += gcnew System::EventHandler(this, &MainWindow::WindowSelection_Click);
 			// 
-			// CapView
+			// CaptureView
 			// 
-			this->CapView->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
+			this->CaptureView->Anchor = static_cast<System::Windows::Forms::AnchorStyles>((((System::Windows::Forms::AnchorStyles::Top | System::Windows::Forms::AnchorStyles::Bottom)
 				| System::Windows::Forms::AnchorStyles::Left)
 				| System::Windows::Forms::AnchorStyles::Right));
-			this->CapView->BorderStyle = System::Windows::Forms::BorderStyle::Fixed3D;
-			this->CapView->Location = System::Drawing::Point(2, 4);
-			this->CapView->Name = L"CapView";
-			this->CapView->Size = System::Drawing::Size(1143, 710);
-			this->CapView->TabIndex = 7;
-			this->CapView->TabStop = false;
+			this->CaptureView->BorderStyle = System::Windows::Forms::BorderStyle::Fixed3D;
+			this->CaptureView->Location = System::Drawing::Point(2, 4);
+			this->CaptureView->Name = L"CaptureView";
+			this->CaptureView->Size = System::Drawing::Size(1143, 710);
+			this->CaptureView->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
+			this->CaptureView->TabIndex = 7;
+			this->CaptureView->TabStop = false;
 			// 
 			// RecordBtn
 			// 
@@ -130,6 +115,11 @@ namespace LCREYE {
 			this->RecordBtn->Text = L"R  e  c  o  r  d";
 			this->RecordBtn->UseVisualStyleBackColor = false;
 			// 
+			// WindowCaptureWorker
+			// 
+			this->WindowCaptureWorker->DoWork += gcnew System::ComponentModel::DoWorkEventHandler(this, &MainWindow::WindowCaptureWorker_DoWork);
+			this->WindowCaptureWorker->RunWorkerCompleted += gcnew System::ComponentModel::RunWorkerCompletedEventHandler(this, &MainWindow::WindowCaptureWorker_RunWorkerCompleted);
+			// 
 			// MainWindow
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(6, 13);
@@ -137,16 +127,21 @@ namespace LCREYE {
 			this->BackColor = System::Drawing::SystemColors::Desktop;
 			this->ClientSize = System::Drawing::Size(1414, 717);
 			this->Controls->Add(this->RecordBtn);
-			this->Controls->Add(this->CapView);
+			this->Controls->Add(this->CaptureView);
 			this->Controls->Add(this->WindowSelection);
-			this->Controls->Add(this->Console);
+			this->Controls->Add(this->ConsoleBox);
 			this->ForeColor = System::Drawing::SystemColors::Control;
 			this->Name = L"MainWindow";
 			this->Text = L"LCREYE [ALPHA]";
-			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->CapView))->EndInit();
+			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->CaptureView))->EndInit();
 			this->ResumeLayout(false);
 
 		}
 #pragma endregion
+private: System::Void WindowCaptureWorker_DoWork(System::Object^ sender, System::ComponentModel::DoWorkEventArgs^ e);
+private: System::Void WindowCaptureWorker_RunWorkerCompleted(System::Object^ sender, System::ComponentModel::RunWorkerCompletedEventArgs^ e);
+private: System::Void GetAppNames();
+private: System::Void WindowSelection_Click(System::Object^ sender, System::EventArgs^ e);
+private: System::Void WindowSelection_SelectionChangeCommitted(System::Object^ sender, System::EventArgs^ e);
 };
 }
