@@ -2,7 +2,6 @@
 
 #include "ComboboxItem.h"
 #include "VFrameReader.h"
-#include <vector>
 #include <string>
 #include <iostream>
 #include <codecvt>
@@ -96,7 +95,6 @@ namespace LCREYE {
 			this->CaptureView->Location = System::Drawing::Point(2, 4);
 			this->CaptureView->Name = L"CaptureView";
 			this->CaptureView->Size = System::Drawing::Size(1143, 710);
-			this->CaptureView->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
 			this->CaptureView->TabIndex = 7;
 			this->CaptureView->TabStop = false;
 			// 
