@@ -20,6 +20,8 @@ LCREYE::VFrameReader::VFrameReader() {
 LCREYE::VFrameReader::~VFrameReader() {
     this->capView = nullptr;
     this->bgWorker = nullptr;
+
+    
 }
 
 /// <summary>
@@ -60,15 +62,15 @@ Bitmap^ LCREYE::VFrameReader::Mat2Bitmap(cv::Mat cvImage) {
 cv::Mat LCREYE::VFrameReader::Bitmap2Mat(System::Drawing::Bitmap^ bmImage) {
     System::Drawing::Rectangle bmRect = System::Drawing::Rectangle(0, 0, bmImage->Width, bmImage->Height);
 
-    System::Drawing::Imaging::BitmapData^ bmData = bmImage->LockBits(bmRect, System::Drawing::Imaging::ImageLockMode::ReadWrite, System::Drawing::Imaging::PixelFormat::Format32bppRgb);
-
-    int bmBitSize = ((bmImage->Width * 24 + 31) / 32) * 4;
-    cv::Mat cvMat(cv::Size(bmImage->Width, bmImage->Height), CV_8UC3, bmData->Scan0.ToPointer(), bmBitSize);
+    System::Drawing::Imaging::BitmapData^ bmData = bmImage->LockBits(bmRect, System::Drawing::Imaging::ImageLockMode::ReadWrite, bmImage->PixelFormat);
     
-    bmImage->UnlockBits(bmData);
+    cv::Mat cvMat;
 
-    delete bmRect;
-    delete bmData;
+    try {
+        void* data = bmData->Scan0.ToPointer();
+        cvMat = cv::Mat(cv::Size(bmImage->Width, bmImage->Height), CV_8UC4, data, std::abs(bmData->Stride));
+    }
+    finally { bmImage->UnlockBits(bmData); }
 
     return cvMat;
 }
@@ -78,18 +80,19 @@ cv::Mat LCREYE::VFrameReader::Bitmap2Mat(System::Drawing::Bitmap^ bmImage) {
 /// output window CaptureView along with later analysis in OpenCV
 /// GDI based
 ///</summary>
-Image^ LCREYE::VFrameReader::GetFrame(HWND capWindow) {
+Image^ LCREYE::VFrameReader::GetFrame(HWND cAppHWND) {
     SetProcessDPIAware();
 
     // set window to top 
     // SetForegroundWindow(capWindow);
     // Sleep(250); // sleep to wait for the window to move
+    Image^ vFrameImage;
 
     // use whole desktop to capture window to get over non windows api gui issue
     HDC cFrame = GetDC(HWND_DESKTOP);
 
     RECT fRect;
-    GetWindowRect(capWindow, &fRect);
+    GetWindowRect(cAppHWND, &fRect);
     int frWidth = fRect.right - fRect.left;
     int frHeight = fRect.bottom - fRect.top;
 
@@ -111,18 +114,19 @@ Image^ LCREYE::VFrameReader::GetFrame(HWND capWindow) {
 
     // convert HBITMAP to BITMAP
     if (cFrameHBitmap != nullptr) {
-        Bitmap^ cFrameBitmap = Bitmap::FromHbitmap((IntPtr)cFrameHBitmap);
+        Bitmap^ vFrameBitmap = Bitmap::FromHbitmap((IntPtr)cFrameHBitmap);
        
         // clean up capture
         DeleteObject(cFrameHBitmap);
         DeleteObject(cFrameCopy);
         ReleaseDC(HWND_DESKTOP, cFrame);
+        ReleaseDC(HWND_DESKTOP, cFrameMem);
         DeleteDC(cFrameMem);
 
-        return (Image^)cFrameBitmap;
+        vFrameImage = (Image^)vFrameBitmap;
     }
 
-    return nullptr;
+    return vFrameImage;
 
 }
 
@@ -141,25 +145,87 @@ System::Void LCREYE::VFrameReader::DoWork(System::ComponentModel::DoWorkEventArg
     this->appName = safe_cast<String^>(e->Argument);
 
     // get window info
-    HWND wHandle;
     pin_ptr<const wchar_t> lcTitle = PtrToStringChars(this->appName);
-    wHandle = FindWindow(NULL, lcTitle);
+    HWND cAppHWND = FindWindow(NULL, lcTitle);
 
-    if (wHandle != nullptr) {
+    if (cAppHWND != nullptr) {
         Debug::WriteLine("\n");
         Debug::Write(this->appName);
         Debug::WriteLine("\n");
 
+        // output image operations
+        cv::Mat cfMat, bwMat, blurMat, thresholdOut;
+
+
         // capture live
         while (!this->isCanceled) {
-            Image^ cFrame = this->GetFrame(wHandle);
+            Image^ cFrame = this->GetFrame(cAppHWND);
 
             if (cFrame != nullptr) {
                 Debug::WriteLine("Grabbing frame from GDI");
                 Debug::WriteLine("Size " + cFrame->Size.ToString());
+                //this->DetectRectangles(cFrame);
                 //this->capView->Image = cFrame;
-                this->DetectRectangles(cFrame);
+
+                // use cv image viewer as using ImageBox is not working right
+                
+                // setup image for cv::Mat conversion
+                Bitmap^ bmImage = gcnew Bitmap(cFrame);
+                cv::Mat cfMat = LCREYE::VFrameReader::Bitmap2Mat(bmImage);
+
+                // turn image b&w
+                cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+                
+                // do cleaning up or blur of image
+                // testing which works
+                //cv::pyrMeanShiftFiltering(cfMat, blurMat, 11, 21);
+                cv::blur(bwMat, blurMat, cv::Size(3, 3));
+
+                
+                //cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+
+                // setup threshold
+                cv::threshold(blurMat, thresholdOut, 0, 255, cv::THRESH_BINARY);
+
+                // find contours
+                std::vector<std::vector<cv::Point>> contours;
+                std::vector<cv::Vec4i> hierarchy;
+                cv::findContours(thresholdOut, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+                // setup hulls and find convexHull
+                //std::vector<std::vector<cv::Point>> hull(contours.size());
+                std::vector<std::vector<cv::Point>> polygon(contours.size());
+                std::vector<cv::Rect> boundRect(contours.size());
+                for (int i = 0; i < contours.size(); i++) {
+                    double fArcLength = cv::arcLength(contours[i], TRUE);
+                    //cv::convexHull(cv::Mat(contours[i]), hull[i], FALSE);
+                    //cv::approxPolyDP(hull[i], polygon[i], 0.015 * fArcLength, TRUE);
+                    cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.015 * fArcLength, TRUE);
+                    cv::drawContours(cfMat, polygon, i, cv::Scalar(0, 0, 255));
+                    if (polygon[i].size() == 4) {
+                        boundRect[i] = cv::boundingRect(polygon[i]);
+                    }
+                }
+
+                // 
+                for (int i = 0; i < boundRect.size(); i++) {
+                    // -1 blocks screen up to chat part of screen
+                    cv::rectangle(cfMat, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(255, 0, 0), 2);
+                }
+
+                // convert back to image and display
+                //Bitmap^ cvBitmap = gcnew Bitmap(LCREYE::VFrameReader::Mat2Bitmap(cfMat));
+
+                //this->capView->Image = (Image^)cvBitmap;
+                cv::namedWindow("Img Analysis...", cv::WINDOW_NORMAL);
+                //cv::resize(cfMat, cfMat, cv::Size(1024, 768));
+                cv::imshow("Img Analysis...", cfMat);
+                cv::waitKey(1);
+                
             }
+
+            bwMat.release();
+            cfMat.release();
 
             Debug::WriteLine("\nCancellationPending?");
             Debug::WriteLine(this->bgWorker->CancellationPending);
@@ -178,62 +244,65 @@ System::Void LCREYE::VFrameReader::DoWork(System::ComponentModel::DoWorkEventArg
 ///</summary>
 System::Void LCREYE::VFrameReader::DetectRectangles(Image^ cFrame)
 {
-    Debug::WriteLine("Pixel format of CFrame");
-    Debug::Write(cFrame->PixelFormat);
+    
     // setup image for cv::Mat conversion
-    cv::Mat cfMat = LCREYE::VFrameReader::Bitmap2Mat((Bitmap^)cFrame);
-    /*
+    Bitmap^ bmImage = gcnew Bitmap(cFrame);
+    cv::Mat cfMat = LCREYE::VFrameReader::Bitmap2Mat(bmImage);
+    
     // output image operations
     cv::Mat bwMat;
 
-    // turn image b&w
-    cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+    
     
     // -- doing it with convexhulls --
     
     // setup mat to find contours
     cv::Mat blurMat, thresholdOut;
-    cv::blur(bwMat, blurMat, cv::Size(3, 3));
-    cv::threshold(blurMat, thresholdOut, 50, 255, cv::THRESH_BINARY);
+
+    
+
+    // do cleaning up or blur of image
+    // testing which works
+    cv::pyrMeanShiftFiltering(cfMat, blurMat, 11, 21);
+    //cv::blur(bwMat, blurMat, cv::Size(3, 3));
+
+    // turn image b&w
+    cv::cvtColor(blurMat, bwMat, cv::COLOR_BGR2GRAY);
+
+    // setup threshold
+    cv::threshold(bwMat, thresholdOut, 0, 255, cv::THRESH_BINARY_INV + cv::THRESH_OTSU);
 
     // find contours
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Vec4i> hierarchy;
-    cv::findContours(thresholdOut, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
+    cv::findContours(thresholdOut, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
 
     // setup hulls and find convexHull
-    std::vector<std::vector<cv::Point>> hull(contours.size());
+    //std::vector<std::vector<cv::Point>> hull(contours.size());
     std::vector<std::vector<cv::Point>> polygon(contours.size());
-
+    std::vector<cv::Rect> boundRect(contours.size());
     for (int i = 0; i < contours.size(); i++) {
-        cv::convexHull(cv::Mat(contours[i]), hull[i], FALSE);
-        cv::approxPolyDP(hull[i], polygon[i], 20, TRUE);
+        double fArcLength = cv::arcLength(contours[i], TRUE);
+        //cv::convexHull(cv::Mat(contours[i]), hull[i], FALSE);
+        //cv::approxPolyDP(hull[i], polygon[i], 0.015 * fArcLength, TRUE);
+        cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.015 * fArcLength, TRUE);
+        if (polygon[i].size() == 4) {
+            boundRect[i] = cv::boundingRect(polygon[i]);
+        }
     }
 
-    // go through polygon and find rectangels (4 corners)
-    for (int i = 0; i < polygon.size(); i++) {
-        if (polygon[i].size() >= 4) {
-            cv::drawContours(cfMat, polygon, i, cv::Scalar(0, 0, 255));
-        }
-        
-    }*/
-
-    
+    // 
+    for (int i = 0; i < boundRect.size(); i++) {
+        // -1 blocks screen up to chat part of screen
+        cv::rectangle(cfMat, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(255, 0, 0), -1);
+    }
 
     // convert back to image and display
-    Bitmap^ cvBitmap = LCREYE::VFrameReader::Mat2Bitmap(cfMat);
+    Bitmap^ cvBitmap = gcnew Bitmap(LCREYE::VFrameReader::Mat2Bitmap(cfMat));
 
-    Debug::WriteLine("\ncvBitmap size: width");
-    Debug::Write(cvBitmap->Width);
-    Debug::WriteLine("\nheight");
-    Debug::Write(cvBitmap->Height);
-    Debug::WriteLine("\n");
-
-    //cv::imshow("cfmat", cfMat);
-    //cv::waitKey();
     this->capView->Image = (Image^)cvBitmap;
 
-    //bwMat.release();
+    bwMat.release();
     cfMat.release();
 
     // -- doing it with houglines --

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "dxgi.h"
+#include <dxgi.h>
 #include <vcclr.h>
 #include <vector>
+#include "opencv2/core/core.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/highgui.hpp"
 #include "opencv2/imgproc.hpp"
