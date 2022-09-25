@@ -18,7 +18,7 @@ LCREYE::VFrameReader::VFrameReader() {
 /// Deconstructor
 /// </summary>
 LCREYE::VFrameReader::~VFrameReader() {
-    this->capView = nullptr;
+    //this->capView = nullptr;
     this->bgWorker = nullptr;
 }
 
@@ -271,6 +271,7 @@ System::Void LCREYE::VFrameReader::DoWorkApp(System::ComponentModel::DoWorkEvent
     }
 }
 
+
 ///<summary>
 /// DoWorkMonitor, runs frame capture for WindowCaptureWorker and selected monitor
 ///</summary>
@@ -278,11 +279,15 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
     // capture live
     Debug::WriteLine("DoWorkMonitor starts for monitor # " + (this->selectedMonitorNumber + 1).ToString());
 
+    // face detect vars
+    cv::CascadeClassifier faceCascade;
+    faceCascade.load("C:\\opencv\\build\\etc\\haarcascades\\haarcascade_frontalface_alt.xml");
+
     while (!this->isCanceled) {
         Image^ cFrame = this->GetFrameMonitor(this->selectedMonitor);
 
         // output image operations
-        cv::Mat cfMat, bwMat, blurMat, thresholdOut;
+        cv::Mat cfMat, bwMat, blurMat, thresholdOut, canMat;
 
         if (cFrame != nullptr) {
 
@@ -299,48 +304,77 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
             // turn image b&w
             cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
 
+            cv::Canny(bwMat, canMat, 0, 150, 3);
+            //cv::imshow("canMat", canMat);
+
             // do cleaning up or blur of image
             // testing which works
             //cv::pyrMeanShiftFiltering(cfMat, blurMat, 11, 21);
-            cv::blur(bwMat, blurMat, cv::Size(3, 3));
+            //cv::blur(bwMat, blurMat, cv::Size(3, 3));
+            //cv::blur(canMat, blurMat, cv::Size(3, 3));
+            //cv::imshow("blurMat", blurMat);
+            //cv::threshold(bwMat, thresholdOut, 0, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
+            //cv::imshow("thresholdOut", thresholdOut);
 
+            //cv::GaussianBlur(bwMat, blurMat, cv::Size(3, 3), 0, 0);
+            //cv::imshow("blurMat", blurMat);
 
-            //cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+            //cv::Canny(blurMat, canMat, 0, 0);
 
-            // setup threshold
-            cv::threshold(blurMat, thresholdOut, 0, 255, cv::THRESH_BINARY);
-
-            // find contours
             std::vector<std::vector<cv::Point>> contours;
             std::vector<cv::Vec4i> hierarchy;
-            cv::findContours(thresholdOut, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+            //cv::findContours(canMat, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+            cv::findContours(canMat, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
-            // setup hulls and find convexHull
-            //std::vector<std::vector<cv::Point>> hull(contours.size());
+           // cv::imshow("canMat", canMat);
+
             std::vector<std::vector<cv::Point>> polygon(contours.size());
             std::vector<cv::Rect> boundRect(contours.size());
+            std::vector<cv::Rect> conBoundRect(contours.size());
+
             for (int i = 0; i < contours.size(); i++) {
-                double fArcLength = cv::arcLength(contours[i], TRUE);
+                //double fArcLength = cv::arcLength(contours[i], TRUE);
                 //cv::convexHull(cv::Mat(contours[i]), hull[i], FALSE);
                 //cv::approxPolyDP(hull[i], polygon[i], 0.015 * fArcLength, TRUE);
-                cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.015 * fArcLength, TRUE);
-                cv::drawContours(cfMat, polygon, i, cv::Scalar(0, 0, 255));
-                if (polygon[i].size() == 4) {
-                    boundRect[i] = cv::boundingRect(polygon[i]);
+                
+                //cv::drawContours(cfMat, contours, i, cv::Scalar(0, 0, 255), 1, 8, hierarchy, 0);
+                
+                //cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], fArcLength*0.5, TRUE);
+
+                //if (polygon[i].size() >= 4) {
+                //    boundRect[i] = cv::boundingRect(polygon[i]);
+                //}
+
+                if (contours[i].size() == 4) {
+                    //conBoundRect[i] = cv::boundingRect(contours[i]);
+                    cv::drawContours(cfMat, contours, i, cv::Scalar(255, 0, 0), 2, 8, hierarchy, 0);
                 }
+                
             }
 
-            // 
+ 
+            /*for (int i = 0; i < boundRect.size(); i++) {
+                // -1 blocks screen up to chat part of screen
+                cv::rectangle(cfMat, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(255, 0, 0), 1);
+            }
+
             for (int i = 0; i < boundRect.size(); i++) {
                 // -1 blocks screen up to chat part of screen
-                cv::rectangle(cfMat, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(255, 0, 0), 2);
-            }
+                cv::rectangle(cfMat, conBoundRect[i].tl(), conBoundRect[i].br(), cv::Scalar(0, 0, 255), 1);
+            }*/
 
             // convert back to image and display
             //Bitmap^ cvBitmap = gcnew Bitmap(LCREYE::VFrameReader::Mat2Bitmap(cfMat));
 
+            // -- face detection -- //
+            std::vector<cv::Rect> facesRects;
+            faceCascade.detectMultiScale(cfMat, facesRects, 1.1, 3, 0, cv::Size(20, 20));
+            for (int i = 0; i < facesRects.size(); i++) {
+                cv::rectangle(cfMat, facesRects[i], cv::Scalar(255, 255, 0), 2, 1, 0);
+            }
+
             //this->capView->Image = (Image^)cvBitmap;
-            cv::namedWindow("Img Analysis...", cv::WINDOW_NORMAL);
+            //cv::namedWindow("Img Analysis...", cv::WINDOW_NORMAL);
             //cv::resize(cfMat, cfMat, cv::Size(1024, 768));
             cv::imshow("Img Analysis...", cfMat);
             cv::waitKey(1);
@@ -420,7 +454,7 @@ System::Void LCREYE::VFrameReader::DetectRectangles(Image^ cFrame)
     // convert back to image and display
     Bitmap^ cvBitmap = gcnew Bitmap(LCREYE::VFrameReader::Mat2Bitmap(cfMat));
 
-    this->capView->Image = (Image^)cvBitmap;
+    //this->capView->Image = (Image^)cvBitmap;
 
     bwMat.release();
     cfMat.release();

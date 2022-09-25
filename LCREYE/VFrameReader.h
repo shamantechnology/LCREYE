@@ -2,11 +2,12 @@
 
 #include <dxgi.h>
 #include <vcclr.h>
-#include <vector>
-#include "opencv2/core/core.hpp"
-#include "opencv2/imgcodecs.hpp"
-#include "opencv2/highgui.hpp"
-#include "opencv2/imgproc.hpp"
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/objdetect/objdetect.hpp>
+#include <cmath>
 
 namespace LCREYE {
 	public ref class VFrameReader {
@@ -20,7 +21,7 @@ namespace LCREYE {
 		int selectedMonitorNumber = 0;
 		int selectedMonitorWidth;
 		int selectedMonitorHeight;
-		System::Windows::Forms::PictureBox^ capView = nullptr;
+		//System::Windows::Forms::PictureBox^ capView = nullptr;
 		System::ComponentModel::BackgroundWorker^ bgWorker = nullptr;
 		System::Windows::Forms::RichTextBox^ consoleBox = nullptr;
 

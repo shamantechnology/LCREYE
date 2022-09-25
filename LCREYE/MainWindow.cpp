@@ -211,7 +211,7 @@ System::Void LCREYE::MainWindow::WindowSelection_SelectionChangeCommitted(System
     this->ConsoleBox->Text += "Capturing from \"monitor #" + monNum.ToString() + "\"\n";
 
     // set capture window
-    this->vreader->capView = this->CaptureView;
+    //this->vreader->capView = this->CaptureView;
 
     // set background worker
     this->WindowCaptureWorker->WorkerReportsProgress = false;
