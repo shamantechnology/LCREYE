@@ -281,7 +281,7 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
 
     // face detect vars
     cv::CascadeClassifier faceCascade;
-    faceCascade.load("C:\\opencv\\build\\etc\\haarcascades\\haarcascade_frontalface_alt.xml");
+    faceCascade.load("C:\\opencv\\build\\etc\\haarcascades\\haarcascade_frontalface_alt2.xml");
 
     while (!this->isCanceled) {
         Image^ cFrame = this->GetFrameMonitor(this->selectedMonitor);
@@ -303,6 +303,8 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
             
             // turn image b&w
             cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+
+            cv::Mat ccfMat = cfMat.clone();
 
             cv::Canny(bwMat, canMat, 0, 150, 3);
             //cv::imshow("canMat", canMat);
@@ -345,12 +347,15 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
                 //    boundRect[i] = cv::boundingRect(polygon[i]);
                 //}
 
-                if (contours[i].size() == 4) {
+                if (contours[i].size() >= 4 && contours[i].size() <= 8) {
                     //conBoundRect[i] = cv::boundingRect(contours[i]);
                     cv::drawContours(cfMat, contours, i, cv::Scalar(255, 0, 0), 2, 8, hierarchy, 0);
                 }
                 
             }
+
+            cv::namedWindow("Contours", cv::WINDOW_NORMAL);
+            cv::imshow("Contours", cfMat);
 
  
             /*for (int i = 0; i < boundRect.size(); i++) {
@@ -368,15 +373,19 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
 
             // -- face detection -- //
             std::vector<cv::Rect> facesRects;
-            faceCascade.detectMultiScale(cfMat, facesRects, 1.1, 3, 0, cv::Size(20, 20));
+            
+            faceCascade.detectMultiScale(ccfMat, facesRects, 1.1, 3, 0, cv::Size(20, 20));
             for (int i = 0; i < facesRects.size(); i++) {
-                cv::rectangle(cfMat, facesRects[i], cv::Scalar(255, 255, 0), 2, 1, 0);
+                cv::rectangle(ccfMat, facesRects[i], cv::Scalar(255, 255, 0), 2, 1, 0);
             }
+
+            cv::namedWindow("Faces", cv::WINDOW_NORMAL);
+            cv::imshow("Faces", ccfMat);
 
             //this->capView->Image = (Image^)cvBitmap;
             //cv::namedWindow("Img Analysis...", cv::WINDOW_NORMAL);
             //cv::resize(cfMat, cfMat, cv::Size(1024, 768));
-            cv::imshow("Img Analysis...", cfMat);
+            
             cv::waitKey(1);
         }
 
