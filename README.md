@@ -20,8 +20,10 @@ For the non-technical researcher, we hope to cut through the task of labeling or
  
 ## Installation
 [OpenCV 4.6.0 for Windows](https://sourceforge.net/projects/opencvlibrary/files/4.6.0/) must be install on the C drive (at C:\opencv)
-Run the install MSI
 
+~~Run the install MSI~~ Install file still in the works
+
+If wanting to run, please clone the project with Visual Studio 2022 and follow these install instructions on adding opencv to Visual Studio 2022 [Setup OpenCV in Visual Studio 2022 for C/C++ Development](https://www.youtube.com/watch?v=unSce_GPwto)
 
 ## Usage
 Automating object and facial tagging for video
