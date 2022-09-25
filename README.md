@@ -3,7 +3,7 @@ Live Chat Record Eye
 Desktop capture based analysis tool to archive live chat from youtube, tiktok, facebook and twitch
 
 
-# LCREYE (Live Chat Record Eye)
+# LCREYE (Live ~~Chat~~ Record Eye)
 
 ## Team Members
 Vincent Castro https://github.com/risingsunomi
