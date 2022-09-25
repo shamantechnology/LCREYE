@@ -1,6 +1,6 @@
 # LCREYE
 Live Record Eye
-
+Automatted face and object tagging for video and desktop recording
 
 
 # LCREYE (Live ~~Chat~~ Record Eye)
