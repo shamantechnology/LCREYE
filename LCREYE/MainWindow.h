@@ -6,6 +6,7 @@
 #include <iostream>
 #include <codecvt>
 #include <list>
+#include <tuple>
 
 namespace LCREYE {
 
@@ -136,10 +137,13 @@ namespace LCREYE {
 
 		}
 #pragma endregion
-private: System::Void WindowCaptureWorker_DoWork(System::Object^ sender, System::ComponentModel::DoWorkEventArgs^ e);
-private: System::Void WindowCaptureWorker_RunWorkerCompleted(System::Object^ sender, System::ComponentModel::RunWorkerCompletedEventArgs^ e);
+private: System::Void WindowCaptureWorker_DoWork(System::Object^, System::ComponentModel::DoWorkEventArgs^);
+private: System::Void WindowCaptureWorker_RunWorkerCompleted(System::Object^, System::ComponentModel::RunWorkerCompletedEventArgs^);
 private: System::Void GetAppNames();
-private: System::Void WindowSelection_Click(System::Object^ sender, System::EventArgs^ e);
-private: System::Void WindowSelection_SelectionChangeCommitted(System::Object^ sender, System::EventArgs^ e);
+private: std::vector<HDC> GetAllMonitors();
+private: std::vector<std::pair<int, int>> GetAllMonitorsSizes();
+private: System::Void AddMonitorSelection(std::vector<HDC>);
+private: System::Void WindowSelection_Click(System::Object^, System::EventArgs^);
+private: System::Void WindowSelection_SelectionChangeCommitted(System::Object^, System::EventArgs^);
 };
 }

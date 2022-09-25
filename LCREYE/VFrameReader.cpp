@@ -20,8 +20,6 @@ LCREYE::VFrameReader::VFrameReader() {
 LCREYE::VFrameReader::~VFrameReader() {
     this->capView = nullptr;
     this->bgWorker = nullptr;
-
-    
 }
 
 /// <summary>
@@ -78,39 +76,29 @@ cv::Mat LCREYE::VFrameReader::Bitmap2Mat(System::Drawing::Bitmap^ bmImage) {
 ///<summary>
 ///GetFrame gets the current desktop or window frame and display it in
 /// output window CaptureView along with later analysis in OpenCV
+/// This doesn't bring the window to the top and will need to be done by user
 /// GDI based
 ///</summary>
-Image^ LCREYE::VFrameReader::GetFrame(HWND cAppHWND) {
+Image^ LCREYE::VFrameReader::GetFrame(HWND cApp) {
     SetProcessDPIAware();
 
-    // set window to top 
-    // SetForegroundWindow(capWindow);
-    // Sleep(250); // sleep to wait for the window to move
     Image^ vFrameImage;
 
     // use whole desktop to capture window to get over non windows api gui issue
     HDC cFrame = GetDC(HWND_DESKTOP);
 
     RECT fRect;
-    GetWindowRect(cAppHWND, &fRect);
+    GetWindowRect(cApp, &fRect);
     int frWidth = fRect.right - fRect.left;
     int frHeight = fRect.bottom - fRect.top;
 
-
     HDC cFrameMem = CreateCompatibleDC(cFrame);
-
-    // width height of main desktop screen
-    this->cFrameWidth = GetDeviceCaps(cFrame, HORZRES);
-    this->cFrameHeight = GetDeviceCaps(cFrame, VERTRES);
 
     // create a bitmap to send to CaptureView
     HBITMAP cFrameHBitmap = CreateCompatibleBitmap(cFrame, frWidth, frHeight);
     HBITMAP cFrameCopy = (HBITMAP)SelectObject(cFrameMem, cFrameHBitmap);
     BitBlt(cFrameMem, 0, 0, frWidth, frHeight, cFrame, fRect.left, fRect.top, SRCCOPY | CAPTUREBLT);
     cFrameHBitmap = (HBITMAP)SelectObject(cFrameMem, cFrameCopy);
-
-    //restore the foreground
-    // SetForegroundWindow(GetConsoleWindow());
 
     // convert HBITMAP to BITMAP
     if (cFrameHBitmap != nullptr) {
@@ -131,6 +119,51 @@ Image^ LCREYE::VFrameReader::GetFrame(HWND cAppHWND) {
 }
 
 ///<summary>
+///GetFrameMonitor like GetFrame but for monitors
+/// GDI based
+///</summary>
+Image^ LCREYE::VFrameReader::GetFrameMonitor(HDC cHDC) {
+    SetProcessDPIAware();
+
+    // set window to top 
+    // SetForegroundWindow(capWindow);
+    // Sleep(250); // sleep to wait for the window to move
+    Image^ vFrameImage;
+
+    // use whole desktop to capture window to get over non windows api gui issue
+    HDC cFrameMem = CreateCompatibleDC(cHDC);
+
+    this->selectedMonitorWidth = GetSystemMetrics(SM_CXSCREEN);
+    this->selectedMonitorHeight = GetSystemMetrics(SM_CYSCREEN);
+
+    // create a bitmap to send to CaptureView
+    HBITMAP cFrameHBitmap = CreateCompatibleBitmap(cHDC, this->selectedMonitorWidth, this->selectedMonitorHeight);
+    HBITMAP cFrameCopy = (HBITMAP)SelectObject(cFrameMem, cFrameHBitmap);
+    BitBlt(cFrameMem, 0, 0, this->selectedMonitorWidth, this->selectedMonitorHeight, cHDC, 0, 0, SRCCOPY);
+    cFrameHBitmap = (HBITMAP)SelectObject(cFrameMem, cFrameCopy);
+
+    //restore the foreground
+    // SetForegroundWindow(GetConsoleWindow());
+
+    // convert HBITMAP to BITMAP
+    if (cFrameHBitmap != nullptr) {
+        Bitmap^ vFrameBitmap = Bitmap::FromHbitmap((IntPtr)cFrameHBitmap);
+
+        // clean up capture
+        DeleteObject(cFrameHBitmap);
+        DeleteObject(cFrameCopy);
+        //ReleaseDC(HWND_DESKTOP, cHDC);
+        ReleaseDC(HWND_DESKTOP, cFrameMem);
+        DeleteDC(cFrameMem);
+
+        vFrameImage = (Image^)vFrameBitmap;
+    }
+
+    return vFrameImage;
+
+}
+
+///<summary>
 /// CancelWork, Cancels work of frame grabbing done by WindowCaptureWorker in MainWindow
 ///</summary>
 System::Void LCREYE::VFrameReader::CancelWork(void) {
@@ -138,9 +171,9 @@ System::Void LCREYE::VFrameReader::CancelWork(void) {
 }
 
 ///<summary>
-/// DoWork, runs frame capture for WindowCaptureWorker and selected app
+/// DoWorkApp, runs frame capture for WindowCaptureWorker and selected app
 ///</summary>
-System::Void LCREYE::VFrameReader::DoWork(System::ComponentModel::DoWorkEventArgs^ e) {
+System::Void LCREYE::VFrameReader::DoWorkApp(System::ComponentModel::DoWorkEventArgs^ e) {
     // get app name from argument
     this->appName = safe_cast<String^>(e->Argument);
 
@@ -156,10 +189,10 @@ System::Void LCREYE::VFrameReader::DoWork(System::ComponentModel::DoWorkEventArg
         // output image operations
         cv::Mat cfMat, bwMat, blurMat, thresholdOut;
 
-
         // capture live
         while (!this->isCanceled) {
             Image^ cFrame = this->GetFrame(cAppHWND);
+            ReleaseDC(NULL, this->selectedMonitor);
 
             if (cFrame != nullptr) {
                 Debug::WriteLine("Grabbing frame from GDI");
@@ -234,6 +267,93 @@ System::Void LCREYE::VFrameReader::DoWork(System::ComponentModel::DoWorkEventArg
                 break;
             }
 
+        }
+    }
+}
+
+///<summary>
+/// DoWorkMonitor, runs frame capture for WindowCaptureWorker and selected monitor
+///</summary>
+System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkEventArgs^ e) {
+    // capture live
+    Debug::WriteLine("DoWorkMonitor starts for monitor # " + (this->selectedMonitorNumber + 1).ToString());
+
+    while (!this->isCanceled) {
+        Image^ cFrame = this->GetFrameMonitor(this->selectedMonitor);
+
+        // output image operations
+        cv::Mat cfMat, bwMat, blurMat, thresholdOut;
+
+        if (cFrame != nullptr) {
+
+            Debug::WriteLine("Grabbing Monitor #" + (this->selectedMonitorNumber+1).ToString() + " frame");
+            Debug::WriteLine("Size " + cFrame->Size.ToString());
+
+            // use cv image viewer as using ImageBox is not working right
+
+            // setup image for cv::Mat conversion
+            Bitmap^ bmImage = gcnew Bitmap(cFrame);
+            cv::Mat cfMat = LCREYE::VFrameReader::Bitmap2Mat(bmImage);
+
+            
+            // turn image b&w
+            cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+
+            // do cleaning up or blur of image
+            // testing which works
+            //cv::pyrMeanShiftFiltering(cfMat, blurMat, 11, 21);
+            cv::blur(bwMat, blurMat, cv::Size(3, 3));
+
+
+            //cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+
+            // setup threshold
+            cv::threshold(blurMat, thresholdOut, 0, 255, cv::THRESH_BINARY);
+
+            // find contours
+            std::vector<std::vector<cv::Point>> contours;
+            std::vector<cv::Vec4i> hierarchy;
+            cv::findContours(thresholdOut, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+            // setup hulls and find convexHull
+            //std::vector<std::vector<cv::Point>> hull(contours.size());
+            std::vector<std::vector<cv::Point>> polygon(contours.size());
+            std::vector<cv::Rect> boundRect(contours.size());
+            for (int i = 0; i < contours.size(); i++) {
+                double fArcLength = cv::arcLength(contours[i], TRUE);
+                //cv::convexHull(cv::Mat(contours[i]), hull[i], FALSE);
+                //cv::approxPolyDP(hull[i], polygon[i], 0.015 * fArcLength, TRUE);
+                cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.015 * fArcLength, TRUE);
+                cv::drawContours(cfMat, polygon, i, cv::Scalar(0, 0, 255));
+                if (polygon[i].size() == 4) {
+                    boundRect[i] = cv::boundingRect(polygon[i]);
+                }
+            }
+
+            // 
+            for (int i = 0; i < boundRect.size(); i++) {
+                // -1 blocks screen up to chat part of screen
+                cv::rectangle(cfMat, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(255, 0, 0), 2);
+            }
+
+            // convert back to image and display
+            //Bitmap^ cvBitmap = gcnew Bitmap(LCREYE::VFrameReader::Mat2Bitmap(cfMat));
+
+            //this->capView->Image = (Image^)cvBitmap;
+            cv::namedWindow("Img Analysis...", cv::WINDOW_NORMAL);
+            //cv::resize(cfMat, cfMat, cv::Size(1024, 768));
+            cv::imshow("Img Analysis...", cfMat);
+            cv::waitKey(1);
+        }
+
+        bwMat.release();
+        cfMat.release();
+
+        Debug::WriteLine("\nCancellationPending?");
+        Debug::WriteLine(this->bgWorker->CancellationPending);
+        if (this->bgWorker->CancellationPending) {
+            e->Cancel = true;
+            break;
         }
     }
 }
