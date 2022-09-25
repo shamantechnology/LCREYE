@@ -5,6 +5,8 @@ VisualStudioVersion = 17.3.32901.215
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LCREYE", "LCREYE\LCREYE.vcxproj", "{268BCE23-38E6-48F9-A674-5D309ED2C382}"
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "LCREYE_alpha_setup_en", "LCREYE_alpha_setup_en\LCREYE_alpha_setup_en.vdproj", "{56AB4549-FCB9-4717-9D40-A96B12771962}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,11 @@ Global
 		{268BCE23-38E6-48F9-A674-5D309ED2C382}.Release|x64.Build.0 = Release|x64
 		{268BCE23-38E6-48F9-A674-5D309ED2C382}.Release|x86.ActiveCfg = Release|Win32
 		{268BCE23-38E6-48F9-A674-5D309ED2C382}.Release|x86.Build.0 = Release|Win32
+		{56AB4549-FCB9-4717-9D40-A96B12771962}.Debug|x64.ActiveCfg = Release
+		{56AB4549-FCB9-4717-9D40-A96B12771962}.Debug|x64.Build.0 = Release
+		{56AB4549-FCB9-4717-9D40-A96B12771962}.Debug|x86.ActiveCfg = Debug
+		{56AB4549-FCB9-4717-9D40-A96B12771962}.Release|x64.ActiveCfg = Release
+		{56AB4549-FCB9-4717-9D40-A96B12771962}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
