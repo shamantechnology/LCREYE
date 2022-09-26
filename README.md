@@ -59,11 +59,9 @@ Competition now complete, I will be continuing work on the project when the sche
 # Alpha [Broken Badly] Screenshots
 
 ## Tokyo @ Night test
-Left Rectangle Detection
-Right Face Detection
+**Left** Rectangle Detection **Right** Face Detection
 ![Tokyo at Night from 4k YT Video](pictures/tokyo_night_4k.png "Tokyo at Night from 4k YT Video https://www.youtube.com/watch?v=vHr4qSQ-5XU")
 
 ## London @ Day test
-Left Rectangle Detection
-Right Face Detection
+**Left** Rectangle Detection **Right** Face Detection
 ![London during daytime from 4k YT Video](pictures/london_day_4k.png "London during daytime from 4k YT Video https://www.youtube.com/watch?v=MGMqLGvtNpY")
