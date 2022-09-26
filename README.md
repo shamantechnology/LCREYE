@@ -26,7 +26,7 @@ If wanting to run, please clone the project with Visual Studio 2022 and follow t
 
 # Updates/Log
 
-## 09/29/2022
+## 09/26/2022
 
 Competition now complete, I will be continuing work on the project when the schedule fits. Currently, working on:
 
