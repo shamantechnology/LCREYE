@@ -28,7 +28,11 @@ If wanting to run, please clone the project with Visual Studio 2022 and follow t
 
 ## 09/26/2022
 
-Competition now complete, I will be continuing work on the project when the schedule fits. Currently, working on:
+This began as a project for the Bellingcat hackathon call for the creation of OSINT tools to help researchers
+
+[Build Digital Investigation Tools in Bellingcat’s September Hackathons](https://www.bellingcat.com/september-hackathon-announcement-aug-2022/)
+
+With the competition now complete, I will be continuing work on the project when the schedule fits. Currently, working on:
 
 - [MAJOR BUG/ISSUE] **Fix using the actual resolution of the selected monitor**
 	- Right now it is just using the primary monitor resolution and trying to use GDI was not giving me the information needed. Using HMONITORINFO and other methods online did not give the proper RECT coordinates or had nothing at all coming from the monitor ENUM. Will need to work on this further and get it fixed ASAP. Might need to dig into other APIs for help on getting the resolution.
