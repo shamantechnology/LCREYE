@@ -1,9 +1,9 @@
 # LCREYE
-Live Record Eye
+Live sCreen Record Eye
 Automatted face and object tagging for video and desktop recording
 
 
-# LCREYE (Live ~~Chat~~ Record Eye)
+# LCREYE (Live sCreen Record Eye)
 
 ## Team Members
 Vincent Castro https://github.com/risingsunomi
