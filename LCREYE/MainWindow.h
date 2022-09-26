@@ -8,6 +8,8 @@
 #include <list>
 #include <tuple>
 
+
+
 namespace LCREYE {
 
 	using namespace System;
@@ -45,6 +47,8 @@ namespace LCREYE {
 
 		// vframe member
 		LCREYE::VFrameReader^ vreader;
+
+		
 
 #pragma region Windows Form Designer generated code
 		/// <summary>
@@ -102,7 +106,7 @@ namespace LCREYE {
 			this->foundObjectsList->Name = L"foundObjectsList";
 			this->foundObjectsList->Size = System::Drawing::Size(261, 563);
 			this->foundObjectsList->TabIndex = 7;
-			this->foundObjectsList->Text = L"Object 1\nObject 2";
+			this->foundObjectsList->Text = L"";
 			// 
 			// MainWindow
 			// 
