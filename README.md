@@ -26,6 +26,15 @@ If wanting to run, please clone the project with Visual Studio 2022 and follow t
 
 # Updates/Log
 
+## 10/04/2022
+
+Current development is focused on adding in face detection and recognition using the OpenCV deep learning interface. Initially, using Yunet for face detection and sface for recognition, we hope to add in an option to add other models. We will also be looking to implement more DNN models for object detection/recognition.
+
+The way we have the analysis and everything setup, GDI based frames are being delayed down to 2-5 fps. Hopefully with better model/processing we can get that fps up to 30+. Still need to test and see.
+
+After we have more image processing issues worked out, we should be good to work on recognized item managemment
+
+
 ## 09/26/2022
 
 This began as a project for the Bellingcat hackathon call for the creation of OSINT tools to help researchers
