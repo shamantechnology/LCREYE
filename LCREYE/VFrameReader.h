@@ -55,6 +55,9 @@ namespace LCREYE {
 		// capture rectangle in image via cv Mat
 		cv::Mat DetectRectangles(cv::Mat&);
 
+		// capture line in image via cv Mat
+		cv::Mat DetectLines(cv::Mat&);
+
 		// Load face haar xml
 		cv::CascadeClassifier LoadFaceCascadeXML();
 	

@@ -196,7 +196,7 @@ System::Void LCREYE::VFrameReader::DoWorkApp(System::ComponentModel::DoWorkEvent
         Debug::WriteLine("\n");
 
         // output image operations
-        cv::Mat cfMat, conMat, faceMat;
+        cv::Mat cfMat, rectMat, faceMat, lineMat;
 
         // capture live
         while (!this->isCanceled) {
@@ -211,9 +211,9 @@ System::Void LCREYE::VFrameReader::DoWorkApp(System::ComponentModel::DoWorkEvent
                 cv::Mat cfMat = LCREYE::VFrameReader::Bitmap2Mat(bmImage);
 
                 // do contour/object match
-                conMat = this->DetectRectangles(cfMat);
-                cv::namedWindow("Contours", cv::WINDOW_NORMAL);
-                cv::imshow("Contours", conMat);
+                //rectMat = this->DetectRectangles(cfMat);
+                //cv::namedWindow("Rectangles", cv::WINDOW_NORMAL);
+                //cv::imshow("Rectangles", rectMat);
 
                 // do a face match
 
@@ -222,13 +222,19 @@ System::Void LCREYE::VFrameReader::DoWorkApp(System::ComponentModel::DoWorkEvent
                     cv::namedWindow("Faces", cv::WINDOW_NORMAL);
                     cv::imshow("Faces", faceMat);
                 }
+
+                lineMat = this->DetectLines(cfMat);
+                cv::namedWindow("Lines", cv::WINDOW_NORMAL);
+                cv::imshow("Lines", lineMat);
+
                 cv::waitKey(1);
                 
             }
 
             cfMat.release();
-            conMat.release();
+            rectMat.release();
             faceMat.release();
+            lineMat.release();
 
             Debug::WriteLine("\nCancellationPending?");
             Debug::WriteLine(this->bgWorker->CancellationPending);
@@ -258,7 +264,7 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
         Image^ cFrame = this->GetFrameMonitor(this->selectedMonitor);
 
         // output image operations
-        cv::Mat cfMat, conMat, faceMat;
+        cv::Mat cfMat, rectMat, faceMat, lineMat, comboMat;
 
         if (cFrame != nullptr) {
 
@@ -270,24 +276,50 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
             cv::Mat cfMat = LCREYE::VFrameReader::Bitmap2Mat(bmImage);
 
             // do contour/object match
-            conMat = this->DetectRectangles(cfMat.clone());
-            cv::namedWindow("Contours", cv::WINDOW_NORMAL);
-            cv::imshow("Contours", conMat);
+            //rectMat = this->DetectRectangles(cfMat.clone());
+            //Debug::WriteLine("rectMat channels: ");
+            //Debug::Write(rectMat.channels());
+            //Debug::WriteLine("\n");
+            //cv::namedWindow("Rectangles", cv::WINDOW_NORMAL);
+            //cv::imshow("Rectangles", rectMat);
+
+            // brings back 1 or 3 channels while others are 2 channel
+            //lineMat = this->DetectLines(cfMat.clone());
+            //Debug::WriteLine("lineMat channels: ");
+            //Debug::Write(lineMat.channels());
+            //Debug::WriteLine("\n");
+            //cv::namedWindow("Lines", cv::WINDOW_NORMAL);
+            //cv::imshow("Lines", lineMat);
 
             // do a face match
-            
+
             if (this->faceCascadeLoaded) {
                 faceMat = this->DetectFaces(cfMat.clone(), faceXML);
+                Debug::WriteLine("faceMat channels: ");
+                Debug::Write(faceMat.channels());
+                Debug::WriteLine("\n");
                 cv::namedWindow("Faces", cv::WINDOW_NORMAL);
                 cv::imshow("Faces", faceMat);
             }
+
+            //std::vector<cv::Mat> comboMatVect = {
+            //    rectMat,
+                //lineMat,
+                //faceMat
+            //};
+            //cv::hconcat(comboMatVect, comboMat);
+            //comboMat = rectMat + lineMat + faceMat;
+
+            //cv::namedWindow("Combo", cv::WINDOW_NORMAL);
+            //cv::imshow("Combo", comboMat);
             
             cv::waitKey(1);
         }
 
         cfMat.release();
-        conMat.release();
+        rectMat.release();
         faceMat.release();
+        lineMat.release();
 
         Debug::WriteLine("\nCancellationPending?");
         Debug::WriteLine(this->bgWorker->CancellationPending);
@@ -313,12 +345,22 @@ cv::Mat LCREYE::VFrameReader::DetectRectangles(cv::Mat& cfMat)
     // turn image b&w
     cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
 
-    cv::Canny(bwMat, canMat, 0, 150, 3);
+    //cv::Canny(bwMat, canMat, 0, 150, 3);
+    cv::medianBlur(bwMat, bwMat, 9);
+    cv::adaptiveThreshold(bwMat, canMat, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 9, 2);
     //cv::imshow("canMat", canMat);
+    
+    // noise removal attempts
+    //cv::dilate(canMat, canMat, cv::Mat(), cv::Point(-1, -1)); // hole removal
+    cv::Mat matKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::morphologyEx(canMat, canMat, cv::MORPH_OPEN, matKernel);
+
     cv::findContours(canMat, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
 
     //cv::blur(bwMat, blurMat, cv::Size(3, 3));
     //cv::findContours(blurMat, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+    //cv::findContours(bwMat, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
    
     // setup vectors from contour info
     std::vector<std::vector<cv::Point>> polygon(contours.size());
@@ -328,16 +370,40 @@ cv::Mat LCREYE::VFrameReader::DetectRectangles(cv::Mat& cfMat)
     // try making arcLength variable user can change
     for (int i = 0; i < contours.size(); i++) {
         double fArcLength = cv::arcLength(contours[i], TRUE);
-        cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.015 * fArcLength, TRUE);
-        if (polygon[i].size() == 4) {
-            boundRect[i] = cv::boundingRect(polygon[i]);
+
+        // arclength multiple tuning: 0.015, 0.02, 0.01
+        //cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.015 * fArcLength, TRUE);
+        //cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.002 * fArcLength, TRUE);
+        cv::approxPolyDP(cv::Mat(contours[i]), polygon[i], 0.01 * fArcLength, TRUE);
+        // if (polygon[i].size() == 4) {
+        if (polygon[i].size() == 4 && fabs(cv::contourArea(polygon[i])) > 1000 && cv::isContourConvex(polygon[i])) {
+             boundRect[i] = cv::boundingRect(polygon[i]);
         }
     }
 
     for (int i = 0; i < boundRect.size(); i++) {
         // -1 blocks screen up to chat part of screen
-        cv::rectangle(cfMat, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(0, 0, 255), 1);
+        cv::rectangle(cfMat, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(0, 0, 255), 2);
     }
+
+    return cfMat;
+}
+
+///<summary>
+/// Find lines in image
+///</summary>
+cv::Mat LCREYE::VFrameReader::DetectLines(cv::Mat& cfMat) {
+    // turn image b&w
+    cv::Mat bwMat, linesMat;
+    cv::cvtColor(cfMat, bwMat, cv::COLOR_BGR2GRAY);
+    cv::Ptr<cv::LineSegmentDetector> lineDetector;
+    
+    lineDetector = cv::createLineSegmentDetector();
+
+    lineDetector->detect(bwMat, linesMat);
+    cv::cvtColor(cfMat, cfMat, cv::COLOR_BGRA2BGR);
+    lineDetector->drawSegments(cfMat, linesMat);
+    cv::cvtColor(cfMat, cfMat, cv::COLOR_BGR2BGRA);
 
     return cfMat;
 }
