@@ -317,12 +317,12 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
             //cv::imshow("Rectangles", rectMat);
 
             // brings back 1 or 3 channels while others are 2 channel
-            /*lineMat = this->DetectLines(cfMat.clone());
+            lineMat = this->DetectLines(cfMat.clone());
             Debug::WriteLine("lineMat channels: ");
             Debug::Write(lineMat.channels());
             Debug::WriteLine("\n");
             cv::namedWindow("Lines", cv::WINDOW_NORMAL);
-            cv::imshow("Lines", lineMat);*/
+            cv::imshow("Lines", lineMat);
 
             // do a face match
             faceMat = this->DetectFacesYunet(cfMat.clone(), ynModelPath);

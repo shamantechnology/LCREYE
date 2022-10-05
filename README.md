@@ -26,6 +26,14 @@ If wanting to run, please clone the project with Visual Studio 2022 and follow t
 
 # Updates/Log
 
+## 10/05/2022
+
+I have implemented using the opencv deep neural network Yunet model from this [example](https://github.com/opencv/opencv/blob/4.x/samples/dnn/face_detect.cpp) for facial detection but have not implemented fully the SFace model for recognition. I hope to use the recognition to capture unique faces. Looked into implementing YOLO for object detection but need to write preprocessing and postprocessing functions for Mat to dnn yolo model. 
+
+The FPS issue, I think, is coming from having to convert GDI/GDXI HBITMAP and BITMAP to cv::Mat. That seems like the heaviest lift and I am not finding much in solution to this, that works within the GDI/GDXI framework. Possible solution is, while live desktop capturing, have GDI/GDXI save each capture frame to a temp file for OpenCV. Each new "frame" from the captured desktop copying over the temp file. At end of capture, delete temp file. A faked type of live but might still be slowed down trying to pull from the HD.
+
+More research and work to be done.
+
 ## 10/04/2022
 
 Current development is focused on adding in face detection and recognition using the OpenCV deep learning interface. Initially, using Yunet for face detection and sface for recognition, we hope to add in an option to add other models. We will also be looking to implement more DNN models for object detection/recognition.
