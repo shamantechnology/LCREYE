@@ -12,7 +12,6 @@ LCREYE::VFrameReader::VFrameReader() {
     this->cFrameWidth = 1920;
     this->cFrameHeight = 1080;
 
-
 }
 
 /// <summary>
@@ -31,7 +30,7 @@ Bitmap^ LCREYE::VFrameReader::Mat2Bitmap(cv::Mat cvImage) {
     //cv::cvtColor(cvImage, newImage, cv::COLOR_BGR2BGRA);
     cv::Size cvImageSize = cvImage.size();
 
-    Bitmap^ matBitmap = gcnew Bitmap(cvImageSize.width, cvImageSize.height, cvImage.step1(), Imaging::PixelFormat::Format32bppRgb, (IntPtr)cvImage.data);
+    Bitmap^ matBitmap = gcnew Bitmap(cvImageSize.width, cvImageSize.height, (int)cvImage.step1(), Imaging::PixelFormat::Format32bppRgb, (IntPtr)cvImage.data);
 
     //System::IO::MemoryStream^ matStream = gcnew System::IO::MemoryStream();
     //matBitmap->Save(matStream, Imaging::ImageFormat::Jpeg);
@@ -190,6 +189,8 @@ System::Void LCREYE::VFrameReader::DoWorkApp(System::ComponentModel::DoWorkEvent
     // make this an option later with a config manager
     cv::CascadeClassifier faceXML = this->LoadFaceCascadeXML();
 
+   
+
     if (cAppHWND != nullptr) {
         Debug::WriteLine("\n");
         Debug::Write(this->appName);
@@ -258,7 +259,39 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
 
     // load faces
     // make this an option later with a config manager
-    cv::CascadeClassifier faceXML = this->LoadFaceCascadeXML();
+    //cv::CascadeClassifier faceXML = this->LoadFaceCascadeXML();
+    
+    // setup yn model path
+    std::string ynModelPath;
+
+    PWSTR appData;
+
+    // YN model path
+    if (SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, NULL, &appData) == S_OK) {
+        char rawYNModelPath[MAX_PATH];
+        wcstombs(rawYNModelPath, appData, MAX_PATH);
+        std::string srYNModelPath(rawYNModelPath);
+
+        ynModelPath = srYNModelPath + "\\AlphaThirdEye\\face_detection_yunet_2022mar.onnx";
+
+        //delete srYNModelPath;
+        //delete[] rawYNModelPath;
+    }
+
+    // SFace model path
+    /*if (SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, NULL, &appData) == S_OK) {
+        char rawSFModelPath[MAX_PATH];
+        wcstombs(rawSFModelPath, appData, MAX_PATH);
+        String^ srSFModelPath = gcnew String(rawSFModelPath);
+
+        this->sfModelPath = srSFModelPath + "\\AlphaThirdEye\\face_recognition_sface_2021dec.onnx";
+
+        delete srSFModelPath;
+        //delete[] rawSFModelPath;
+    }*/
+
+
+    //delete appData;
 
     while (!this->isCanceled) {
         Image^ cFrame = this->GetFrameMonitor(this->selectedMonitor);
@@ -284,23 +317,29 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
             //cv::imshow("Rectangles", rectMat);
 
             // brings back 1 or 3 channels while others are 2 channel
-            //lineMat = this->DetectLines(cfMat.clone());
-            //Debug::WriteLine("lineMat channels: ");
-            //Debug::Write(lineMat.channels());
-            //Debug::WriteLine("\n");
-            //cv::namedWindow("Lines", cv::WINDOW_NORMAL);
-            //cv::imshow("Lines", lineMat);
+            /*lineMat = this->DetectLines(cfMat.clone());
+            Debug::WriteLine("lineMat channels: ");
+            Debug::Write(lineMat.channels());
+            Debug::WriteLine("\n");
+            cv::namedWindow("Lines", cv::WINDOW_NORMAL);
+            cv::imshow("Lines", lineMat);*/
 
             // do a face match
+            faceMat = this->DetectFacesYunet(cfMat.clone(), ynModelPath);
+            Debug::WriteLine("faceMat channels: ");
+            Debug::Write(faceMat.channels());
+            Debug::WriteLine("\n");
+            cv::namedWindow("Faces", cv::WINDOW_NORMAL);
+            cv::imshow("Faces", faceMat);
 
-            if (this->faceCascadeLoaded) {
+            /*if (this->faceCascadeLoaded) {
                 faceMat = this->DetectFaces(cfMat.clone(), faceXML);
                 Debug::WriteLine("faceMat channels: ");
                 Debug::Write(faceMat.channels());
                 Debug::WriteLine("\n");
                 cv::namedWindow("Faces", cv::WINDOW_NORMAL);
                 cv::imshow("Faces", faceMat);
-            }
+            }*/
 
             //std::vector<cv::Mat> comboMatVect = {
             //    rectMat,
@@ -348,7 +387,6 @@ cv::Mat LCREYE::VFrameReader::DetectRectangles(cv::Mat& cfMat)
     //cv::Canny(bwMat, canMat, 0, 150, 3);
     cv::medianBlur(bwMat, bwMat, 9);
     cv::adaptiveThreshold(bwMat, canMat, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 9, 2);
-    //cv::imshow("canMat", canMat);
     
     // noise removal attempts
     //cv::dilate(canMat, canMat, cv::Mat(), cv::Point(-1, -1)); // hole removal
@@ -359,7 +397,6 @@ cv::Mat LCREYE::VFrameReader::DetectRectangles(cv::Mat& cfMat)
 
     //cv::blur(bwMat, blurMat, cv::Size(3, 3));
     //cv::findContours(blurMat, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
-
     //cv::findContours(bwMat, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
    
     // setup vectors from contour info
@@ -445,5 +482,40 @@ cv::Mat LCREYE::VFrameReader::DetectFaces(cv::Mat& cfMat, cv::CascadeClassifier 
         }
     }
     
+    return cfMat;
+}
+
+///<summary>
+/// Detect faces in image using deep nn and YUNET
+///</summary>
+cv::Mat LCREYE::VFrameReader::DetectFacesYunet(cv::Mat& cfMat, std::string ynPath)
+{
+    cv::Ptr<cv::FaceDetectorYN> ynDetector = cv::FaceDetectorYN::create(
+        ynPath,
+        "",
+        cfMat.size(),
+        this->scoreThreshold,
+        this->nmsThreshold,
+        this->topK
+    );
+
+    cv::Mat faceMat;
+    cv::cvtColor(cfMat, cfMat, cv::COLOR_BGRA2BGR);
+    ynDetector->detect(cfMat, faceMat);
+    if (faceMat.rows >= 1) {
+        // faces found
+        for (int i = 0; i < faceMat.rows; i++) {
+            cv::Rect2i faceRecCoords = cv::Rect2i(
+                int(faceMat.at<float>(i, 0)),
+                int(faceMat.at<float>(i, 1)),
+                int(faceMat.at<float>(i, 2)),
+                int(faceMat.at<float>(i, 3))
+            );
+
+            cv::Scalar faceRecColor = cv::Scalar(255, 0, 255); // yellow
+            cv::rectangle(cfMat, faceRecCoords, faceRecColor, 2);
+        }
+    }
+
     return cfMat;
 }
