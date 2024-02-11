@@ -261,8 +261,10 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
     // make this an option later with a config manager
     //cv::CascadeClassifier faceXML = this->LoadFaceCascadeXML();
     
-    // setup yn model path
+    // setup dnn model path
+    // need to clean this up to use a setting files for the model paths instead of hardcoding
     std::string ynModelPath;
+    std::string yoloModelPath;
 
     PWSTR appData;
 
@@ -290,6 +292,18 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
         //delete[] rawSFModelPath;
     }*/
 
+    // yolov8x.onnx model path
+    if (SHGetKnownFolderPath(FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, NULL, &appData) == S_OK) {
+        char rawYNModelPath[MAX_PATH];
+        wcstombs(rawYNModelPath, appData, MAX_PATH);
+        std::string srYNModelPath(rawYNModelPath);
+
+        yoloModelPath = srYNModelPath + "\\AlphaThirdEye\\yolov8x.onnx";
+
+        //delete srYNModelPath;
+        //delete[] rawYNModelPath;
+    }
+
 
     //delete appData;
 
@@ -297,7 +311,8 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
         Image^ cFrame = this->GetFrameMonitor(this->selectedMonitor);
 
         // output image operations
-        cv::Mat cfMat, rectMat, faceMat, lineMat, comboMat;
+        cv::Mat cfMat, rectMat, faceMat, lineMat, comboMat, yoloMat;
+        cv::dnn::Net yModel;
 
         if (cFrame != nullptr) {
 
@@ -317,12 +332,12 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
             //cv::imshow("Rectangles", rectMat);
 
             // brings back 1 or 3 channels while others are 2 channel
-            lineMat = this->DetectLines(cfMat.clone());
-            Debug::WriteLine("lineMat channels: ");
-            Debug::Write(lineMat.channels());
-            Debug::WriteLine("\n");
-            cv::namedWindow("Lines", cv::WINDOW_NORMAL);
-            cv::imshow("Lines", lineMat);
+            //lineMat = this->DetectLines(cfMat.clone());
+            //Debug::WriteLine("lineMat channels: ");
+            //Debug::Write(lineMat.channels());
+            //Debug::WriteLine("\n");
+            //cv::namedWindow("Lines", cv::WINDOW_NORMAL);
+            //cv::imshow("Lines", lineMat);
 
             // do a face match
             faceMat = this->DetectFacesYunet(cfMat.clone(), ynModelPath);
@@ -331,6 +346,12 @@ System::Void LCREYE::VFrameReader::DoWorkMonitor(System::ComponentModel::DoWorkE
             Debug::WriteLine("\n");
             cv::namedWindow("Faces", cv::WINDOW_NORMAL);
             cv::imshow("Faces", faceMat);
+
+            // do yolo object detection
+            yModel = this->LoadYOLO(yoloModelPath);
+            yoloMat = this->ProcessYOLO(cfMat.clone(), yModel);
+            cv::namedWindow("Yolo", cv::WINDOW_NORMAL);
+            cv::imshow("Yolo", yoloMat);
 
             /*if (this->faceCascadeLoaded) {
                 faceMat = this->DetectFaces(cfMat.clone(), faceXML);
@@ -519,3 +540,209 @@ cv::Mat LCREYE::VFrameReader::DetectFacesYunet(cv::Mat& cfMat, std::string ynPat
 
     return cfMat;
 }
+
+// Detect objects using YOLO
+// return a matrix that can be turn into a rectangle with label around the object
+cv::dnn::Net LCREYE::VFrameReader::LoadYOLO(std::string yoloPath) {
+    cv::dnn::Net yoloModel = cv::dnn::readNet(yoloPath);
+    return yoloModel;
+}
+
+// Process information from YOLO model detection
+// using image input
+cv::Mat LCREYE::VFrameReader::ProcessYOLO(cv::Mat& cfMat, cv::dnn::Net& yoloModel) {
+
+    // convert image mat to blob
+    cv::Mat imgBlob;
+    cv::dnn::blobFromImage(
+        cfMat,
+        imgBlob,
+        1. / 255,
+        cfMat.size(),
+        cv::Scalar(),
+        true,
+        false
+    );
+
+    // set blob to model input
+    yoloModel.setInput(imgBlob);
+    // forward prop/analyze image
+    std::vector<cv::Mat> outs;
+    yoloModel.forward(outs, yoloModel.getUnconnectedOutLayersNames());
+
+    // get layers
+    static std::vector<int> outLayers = yoloModel.getUnconnectedOutLayers();
+    static std::string outLayerType = yoloModel.getLayer(outLayers[0])->type;
+
+    // process outputs by layer
+    std::vector<int> classIds;
+    std::vector<float> confidences;
+    std::vector<cv::Rect> boxes;
+
+    if (outLayerType == "DetectionOutput")
+    {
+        // Network produces output blob with a shape 1x1xNx7 where N is a number of
+        // detections and an every detection is a vector of values
+        // [batchId, classId, confidence, left, top, right, bottom]
+        CV_Assert(outs.size() > 0);
+        for (size_t k = 0; k < outs.size(); k++)
+        {
+            float* data = (float*)outs[k].data;
+            for (size_t i = 0; i < outs[k].total(); i += 7)
+            {
+                float confidence = data[i + 2];
+                if (confidence > this->yoloConfidenceThreshold)
+                {
+                    int left = (int)data[i + 3];
+                    int top = (int)data[i + 4];
+                    int right = (int)data[i + 5];
+                    int bottom = (int)data[i + 6];
+                    int width = right - left + 1;
+                    int height = bottom - top + 1;
+                    if (width <= 2 || height <= 2)
+                    {
+                        left = (int)(data[i + 3] * cfMat.cols);
+                        top = (int)(data[i + 4] * cfMat.rows);
+                        right = (int)(data[i + 5] * cfMat.cols);
+                        bottom = (int)(data[i + 6] * cfMat.rows);
+                        width = right - left + 1;
+                        height = bottom - top + 1;
+                    }
+                    classIds.push_back((int)(data[i + 1]) - 1);  // Skip 0th background class id.
+                    boxes.push_back(cv::Rect(left, top, width, height));
+                    confidences.push_back(confidence);
+                }
+            }
+        }
+    }
+    else if (outLayerType == "Region")
+    {
+        for (size_t i = 0; i < outs.size(); ++i)
+        {
+            // Network produces output blob with a shape NxC where N is a number of
+            // detected objects and C is a number of classes + 4 where the first 4
+            // numbers are [center_x, center_y, width, height]
+            float* data = (float*)outs[i].data;
+            for (int j = 0; j < outs[i].rows; ++j, data += outs[i].cols)
+            {
+                cv::Mat scores = outs[i].row(j).colRange(5, outs[i].cols);
+                cv::Point classIdPoint;
+                double confidence;
+                cv::minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
+                if (confidence > this->yoloConfidenceThreshold)
+                {
+                    int centerX = (int)(data[0] * cfMat.cols);
+                    int centerY = (int)(data[1] * cfMat.rows);
+                    int width = (int)(data[2] * cfMat.cols);
+                    int height = (int)(data[3] * cfMat.rows);
+                    int left = centerX - width / 2;
+                    int top = centerY - height / 2;
+
+                    classIds.push_back(classIdPoint.x);
+                    confidences.push_back((float)confidence);
+                    boxes.push_back(cv::Rect(left, top, width, height));
+                }
+            }
+        }
+    }
+    else
+        CV_Error(cv::Error::StsNotImplemented, "Unknown output layer type: " + outLayerType);
+    
+    // process further with non-maxium suppression / NMS
+    if (outLayers.size() > 1 || outLayerType == "Region")
+    {
+        std::map<int, std::vector<size_t> > class2indices;
+        for (size_t i = 0; i < classIds.size(); i++)
+        {
+            if (confidences[i] >= this->yoloConfidenceThreshold)
+            {
+                class2indices[classIds[i]].push_back(i);
+            }
+        }
+        std::vector<cv::Rect> nmsBoxes;
+        std::vector<float> nmsConfidences;
+        std::vector<int> nmsClassIds;
+        for (std::map<int, std::vector<size_t> >::iterator it = class2indices.begin(); it != class2indices.end(); ++it)
+        {
+            std::vector<cv::Rect> localBoxes;
+            std::vector<float> localConfidences;
+            std::vector<size_t> classIndices = it->second;
+            for (size_t i = 0; i < classIndices.size(); i++)
+            {
+                localBoxes.push_back(boxes[classIndices[i]]);
+                localConfidences.push_back(confidences[classIndices[i]]);
+            }
+            std::vector<int> nmsIndices;
+            cv::dnn::NMSBoxes(localBoxes, localConfidences, this->yoloConfidenceThreshold, this->yoloNMSThreshold, nmsIndices);
+            for (size_t i = 0; i < nmsIndices.size(); i++)
+            {
+                size_t idx = nmsIndices[i];
+                nmsBoxes.push_back(localBoxes[idx]);
+                nmsConfidences.push_back(localConfidences[idx]);
+                nmsClassIds.push_back(it->first);
+            }
+        }
+        boxes = nmsBoxes;
+        classIds = nmsClassIds;
+        confidences = nmsConfidences;
+    }
+
+    for (size_t idx = 0; idx < boxes.size(); ++idx)
+    {
+        cv::Rect box = boxes[idx];
+
+        // draw box into rectangle
+        int boxLeft = box.x;
+        int boxTop = box.y;
+        int boxRight = box.x + box.width;
+        int boxBottom = box.y + box.height;
+        
+        cv::rectangle(cfMat, cv::Point(boxLeft, boxTop), cv::Point(boxRight, boxBottom), cv::Scalar(0, 255, 0));
+        std::string label = cv::format("%.2f", confidences[idx]);
+        
+        int baseLine;
+        cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+
+        boxTop = cv::max(boxTop, labelSize.height);
+        cv::rectangle(
+            cfMat,
+            cv::Point(boxLeft, boxTop - labelSize.height),
+            cv::Point(boxLeft + labelSize.width, boxTop + baseLine),
+            cv::Scalar::all(255),
+            cv::FILLED
+        );
+        cv::putText(
+            cfMat, 
+            label, 
+            cv::Point(boxLeft, boxTop), 
+            cv::FONT_HERSHEY_SIMPLEX, 
+            0.5, 
+            cv::Scalar()
+        );
+    }
+
+    return cfMat;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

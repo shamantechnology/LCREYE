@@ -27,13 +27,12 @@ namespace LCREYE {
 		int selectedMonitorWidth;
 		int selectedMonitorHeight;
 		bool faceCascadeLoaded = FALSE; // faces opencv interface loaded check
-		
 
 		//System::Windows::Forms::PictureBox^ capView = nullptr;
 		System::ComponentModel::BackgroundWorker^ bgWorker;
 		System::Windows::Forms::RichTextBox^ consoleBox;
 		
-		System::String^ faceCascadeXML = "C:\\opencv\\build\\etc\\haarcascades\\haarcascade_frontalface_alt2.xml";
+		//System::String^ faceCascadeXML = "C:\\opencv\\build\\etc\\haarcascades\\haarcascade_frontalface_alt2.xml";
 		
 		VFrameReader();
 
@@ -50,12 +49,28 @@ namespace LCREYE {
 		~VFrameReader();
 	
 	private:
-		float scoreThreshold = (float)0.9; // Filter out faces of score < score_threshold
-		float nmsThreshold = (float)0.3; // Suppress bounding boxes of iou >= nms_threshold
-		float scale = (float)1.0; // Scale factor used to resize input video frames
+		float scoreThreshold = 0.9; // Filter out faces of score < score_threshold
+		float nmsThreshold = 0.3; // Suppress bounding boxes of iou >= nms_threshold
+		float scale = 1.0; // Scale factor used to resize input video frames
 		int topK = 5000; // Keep top_k bounding boxes before NMS
-		double cosineSimilarThreshold = (double)0.363;
-		double l2NorSimilarThreshold = (double)1.128;
+		double cosineSimilarThreshold = 0.363;
+		double l2NorSimilarThreshold = 1.128;
+
+		float yoloScoreThreshold = 0.5;
+		float yoloNMSThreshold = 0.45;
+		float yoloConfidenceThreshold = 0.45;
+		float yoloDisplayFontScale = 0.7;
+		int yoloDisplayFontFace = cv::FONT_HERSHEY_SIMPLEX;
+		int yoloDisplayThickness = 1;
+
+		/*
+		Color reference
+
+		Scalar BLACK = Scalar(0,0,0);
+		Scalar BLUE = Scalar(255, 178, 50);
+		Scalar YELLOW = Scalar(0, 255, 255);
+		Scalar RED = Scalar(0,0,255);
+		*/
 
 		// get frame with GDI
 		System::Drawing::Image^ GetFrame(HWND);
@@ -81,6 +96,16 @@ namespace LCREYE {
 
 		// Detect face with dnn yunet
 		cv::Mat DetectFacesYunet(cv::Mat&, std::string);
+
+		// Load yolo model
+		cv::dnn::Net LoadYOLO(std::string yoloPath);
+	
+		// Process image and draw labels and dections
+		cv::Mat ProcessYOLO(cv::Mat&, cv::dnn::Net&);
+
+		// draw fps on to image
+		// to do
+		
 	};
 
 	

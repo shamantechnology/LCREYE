@@ -202,13 +202,21 @@ System::Void LCREYE::MainWindow::WindowSelection_SelectionChangeCommitted(System
     System::Diagnostics::Debug::WriteLine("\n Monitors found in Selected: ");
     System::Diagnostics::Debug::Write(monitors.size());
 
-    int monNum;
-    if (!int::TryParse(senderMonitor, monNum)) monNum = 0;
-    if (monNum > 0) monNum = monNum - 1;
+    int monNum; // windows monitor number
+    int monNumDisplay = 0; // monitor number to show to user
+    if (!int::TryParse(senderMonitor, monNum)) {
+        monNum = 0;
+    }
+
+    if (monNum > 0) {
+        monNumDisplay = monNum;
+        monNum = monNum - 1;
+    }
+
     this->vreader->selectedMonitorNumber = monNum;
     this->vreader->selectedMonitor = monitors[monNum];
 
-    this->ConsoleBox->Text += "Capturing from \"monitor #" + monNum.ToString() + "\"\n";
+    this->ConsoleBox->Text += "Capturing from \"monitor #" + monNumDisplay.ToString() + "\"\n";
 
     // set capture window
     //this->vreader->capView = this->CaptureView;
